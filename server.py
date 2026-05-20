@@ -112,6 +112,8 @@ TOOLS: list[Tool] = [
     Tool(name="get_hrv_data", description="Variabilidad de FC (HRV) nocturna: estado, valores, tendencia de 5 días.", inputSchema={"type": "object", "properties": {"date": {"type": "string"}}}),
     Tool(name="get_training_readiness", description="Training Readiness (0-100): combinación de sueño, recuperación, carga y HRV.", inputSchema={"type": "object", "properties": {"date": {"type": "string"}}}),
     Tool(name="get_training_status", description="Training Status (productivo, manteniendo, desentrenando, sobrecargado, etc.). Incluye Acute/Chronic Load y ACWR en mostRecentTrainingStatus.latestTrainingStatusData.<userId>.acuteTrainingLoadDTO.", inputSchema={"type": "object", "properties": {"date": {"type": "string", "description": "Fecha YYYY-MM-DD (default: hoy)"}}}),
+    Tool(name="get_morning_training_readiness", description="Training Readiness matutino detallado: nivel, score y factores (sueño, recovery time, ACWR, HRV, stress) con su feedback.", inputSchema={"type": "object", "properties": {"date": {"type": "string", "description": "Fecha YYYY-MM-DD (default: hoy)"}}}),
+    Tool(name="get_running_tolerance", description="Running Tolerance: tolerancia/carga de carrera en un rango de fechas, agregada por semana o dia.", inputSchema={"type": "object", "properties": {"start_date": {"type": "string"}, "end_date": {"type": "string"}, "aggregation": {"type": "string", "description": "weekly (default) o daily"}}}),
     Tool(name="get_vo2max", description="Estimación de VO2 Max para carrera y ciclismo.", inputSchema={"type": "object", "properties": {"date": {"type": "string"}}}),
     Tool(name="get_lactate_threshold", description="Umbral de lactato: FC y ritmo al umbral.", inputSchema={"type": "object", "properties": {}}),
     Tool(name="get_race_predictions", description="Predicciones de tiempo en carrera: 5K, 10K, media maratón, maratón.", inputSchema={"type": "object", "properties": {}}),
@@ -366,6 +368,10 @@ async def handle_tool(name: str, args: dict) -> list[TextContent]:
             return ok(gc.get_training_readiness(d))
         if name == "get_training_status":
             return ok(gc.get_training_status(d))
+        if name == "get_morning_training_readiness":
+            return ok(gc.get_morning_training_readiness(d))
+        if name == "get_running_tolerance":
+            return ok(gc.get_running_tolerance(sd, ed, args.get("aggregation", "weekly")))
         if name == "get_vo2max":
             return ok(gc.get_max_metrics(d))
         if name == "get_lactate_threshold":
