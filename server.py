@@ -164,6 +164,51 @@ def athlete_snapshot(gc, d: str) -> dict:
     return snap
 
 
+def _months_between(start: str, end: str) -> list[tuple]:
+    s, e = date.fromisoformat(start), date.fromisoformat(end)
+    if e < s:
+        s, e = e, s
+    out, y, m = [], s.year, s.month
+    while (y, m) <= (e.year, e.month):
+        out.append((y, m))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return out
+
+
+def scheduled_workouts(gc, start: str, end: str) -> list:
+    """Workouts programados en el calendario de Garmin entre start y end (YYYY-MM-DD).
+    Itera por mes (la API es por year/month) y mapea a un schema plano. `completed`
+    es best-effort: True si hubo alguna actividad registrada ese dia. Las activities
+    del calendario no exponen el deporte de forma fiable (sportTypeKey viene null),
+    asi que el match es solo por fecha; sin llamadas extra."""
+    items = []
+    for (y, m) in _months_between(start, end):
+        try:
+            items.extend((gc.get_scheduled_workouts(y, m) or {}).get("calendarItems") or [])
+        except Exception:
+            pass
+    activity_dates = {it.get("date") for it in items if it.get("itemType") == "activity" and it.get("date")}
+    out, seen = [], set()
+    for it in items:
+        if it.get("itemType") != "workout":
+            continue
+        d = it.get("date")
+        if not d or not (start <= d <= end) or it.get("id") in seen:
+            continue
+        seen.add(it.get("id"))
+        out.append({
+            "scheduled_workout_id": it.get("id"),
+            "workout_id": it.get("workoutId"),
+            "workout_name": it.get("title"),
+            "date": d,
+            "sport_type": it.get("sportTypeKey"),
+            "estimated_duration_secs": it.get("duration"),
+            "completed": d in activity_dates,
+        })
+    out.sort(key=lambda w: (w["date"], w["scheduled_workout_id"] or 0))
+    return out
+
+
 # ─── Definición de herramientas ───────────────────────────────────────────────
 
 TOOLS: list[Tool] = [
@@ -313,6 +358,7 @@ TOOLS: list[Tool] = [
         inputSchema={"type": "object", "properties": {"workout_id": {"type": "integer"}}, "required": ["workout_id"]}
     ),
     Tool(name="get_workouts", description="Lista todos los entrenamientos guardados en Garmin Connect.", inputSchema={"type": "object", "properties": {"start": {"type": "integer", "default": 0}, "limit": {"type": "integer", "default": 20}}}),
+    Tool(name="get_scheduled_workouts", description="Workouts programados en el calendario entre start_date y end_date (YYYY-MM-DD). Devuelve por cada uno: scheduled_workout_id (el que pide unschedule_workout), workout_id, workout_name, date, sport_type, estimated_duration_secs y completed (best-effort).", inputSchema={"type": "object", "properties": {"start_date": {"type": "string"}, "end_date": {"type": "string"}}, "required": ["start_date", "end_date"]}),
     Tool(name="get_workout", description="Obtiene los detalles de un entrenamiento específico.", inputSchema={"type": "object", "properties": {"workout_id": {"type": "integer"}}, "required": ["workout_id"]}),
 
     # ── 8. COMPOSICIÓN CORPORAL Y PESO ────────────────────────────────────────
@@ -527,6 +573,8 @@ async def handle_tool(name: str, args: dict) -> list[TextContent]:
             return ok(gc.schedule_workout(args["workout_id"], args["scheduled_date"]))
         if name == "unschedule_workout":
             return ok(gc.unschedule_workout(args["scheduled_workout_id"]))
+        if name == "get_scheduled_workouts":
+            return ok(scheduled_workouts(gc, sd, ed))
 
         if name == "add_workout":
             # ── Mapas verificados con payloads reales de Garmin Connect ──────────
@@ -865,7 +913,7 @@ CORE_TOOLS = {
     "get_activities", "get_activities_by_date", "get_activity_details",
     "get_activity_hr_zones", "get_progress_summary", "get_vo2max",
     "add_workout", "schedule_workout", "unschedule_workout", "delete_workout",
-    "get_workouts", "get_workout", "search_strength_exercises",
+    "get_workouts", "get_workout", "get_scheduled_workouts", "search_strength_exercises",
     "get_strength_exercises_by_muscle",
 }
 
