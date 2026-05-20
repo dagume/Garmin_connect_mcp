@@ -262,7 +262,7 @@ TOOLS: list[Tool] = [
                             "secondary_target_value_high": {"type": "number"},
                             "secondary_zone_number": {"type": "integer"},
                             "stroke_type": {"type": "string", "description": "Natación: free, back, breast, fly, medley, any"},
-                            "equipment_type": {"type": "string", "description": "Natación: none, kickboard, fins, paddles, buoy"},
+                            "equipment_type": {"type": "string", "description": "Natación: none, fins, kickboard, paddles, buoy (pull_buoy), snorkel"},
                             "drill_type": {"type": "string", "description": "Natación: kick, pull, drill"},
                             "category":      {"type": "string", "description": "Fuerza: PULL_UP, SQUAT, DEADLIFT, BENCH_PRESS, CARDIO, etc."},
                             "exercise_name": {"type": "string", "description": "Fuerza: WEIGHTED_PULL_UP, WEIGHTED_SQUAT, DEADLIFT, etc."},
@@ -568,12 +568,15 @@ async def handle_tool(name: str, args: dict) -> list[TextContent]:
                 "fly":        {"strokeTypeId": 5, "strokeTypeKey": "fly",        "displayOrder": 5},
                 "free":       {"strokeTypeId": 6, "strokeTypeKey": "free",       "displayOrder": 6},
             }
+            # IDs reales de Garmin (/workout-service/workout/types -> workoutEquipmentTypes)
             EQUIPMENT_MAP = {
                 "none":      {"equipmentTypeId": 0, "equipmentTypeKey": None,        "displayOrder": 0},
+                "fins":      {"equipmentTypeId": 1, "equipmentTypeKey": "fins",      "displayOrder": 1},
                 "kickboard": {"equipmentTypeId": 2, "equipmentTypeKey": "kickboard", "displayOrder": 2},
-                "fins":      {"equipmentTypeId": 3, "equipmentTypeKey": "fins",      "displayOrder": 3},
-                "paddles":   {"equipmentTypeId": 4, "equipmentTypeKey": "paddles",   "displayOrder": 4},
-                "buoy":      {"equipmentTypeId": 5, "equipmentTypeKey": "buoy",      "displayOrder": 5},
+                "paddles":   {"equipmentTypeId": 3, "equipmentTypeKey": "paddles",   "displayOrder": 3},
+                "buoy":      {"equipmentTypeId": 4, "equipmentTypeKey": "pull_buoy", "displayOrder": 4},
+                "pull_buoy": {"equipmentTypeId": 4, "equipmentTypeKey": "pull_buoy", "displayOrder": 4},
+                "snorkel":   {"equipmentTypeId": 5, "equipmentTypeKey": "snorkel",   "displayOrder": 5},
             }
             DRILL_MAP = {
                 "kick":   {"drillTypeId": 1, "drillTypeKey": "kick",   "displayOrder": 1},
