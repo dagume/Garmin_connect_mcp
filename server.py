@@ -93,7 +93,7 @@ TOOLS: list[Tool] = [
     # ── 4. MÉTRICAS AVANZADAS ─────────────────────────────────────────────────
     Tool(name="get_hrv_data", description="Variabilidad de FC (HRV) nocturna: estado, valores, tendencia de 5 días.", inputSchema={"type": "object", "properties": {"date": {"type": "string"}}}),
     Tool(name="get_training_readiness", description="Training Readiness (0-100): combinación de sueño, recuperación, carga y HRV.", inputSchema={"type": "object", "properties": {"date": {"type": "string"}}}),
-    Tool(name="get_training_status", description="Training Status: productivo, manteniendo, desentrenando, sobrecargado, etc.", inputSchema={"type": "object", "properties": {"use_cache": {"type": "boolean", "default": True}}}),
+    Tool(name="get_training_status", description="Training Status (productivo, manteniendo, desentrenando, sobrecargado, etc.). Incluye Acute/Chronic Load y ACWR en mostRecentTrainingStatus.latestTrainingStatusData.<userId>.acuteTrainingLoadDTO.", inputSchema={"type": "object", "properties": {"date": {"type": "string", "description": "Fecha YYYY-MM-DD (default: hoy)"}}}),
     Tool(name="get_vo2max", description="Estimación de VO2 Max para carrera y ciclismo.", inputSchema={"type": "object", "properties": {"date": {"type": "string"}}}),
     Tool(name="get_lactate_threshold", description="Umbral de lactato: FC y ritmo al umbral.", inputSchema={"type": "object", "properties": {}}),
     Tool(name="get_race_predictions", description="Predicciones de tiempo en carrera: 5K, 10K, media maratón, maratón.", inputSchema={"type": "object", "properties": {}}),
@@ -347,7 +347,7 @@ async def handle_tool(name: str, args: dict) -> list[TextContent]:
         if name == "get_training_readiness":
             return ok(gc.get_training_readiness(d))
         if name == "get_training_status":
-            return ok(gc.get_training_status(args.get("use_cache", True)))
+            return ok(gc.get_training_status(d))
         if name == "get_vo2max":
             return ok(gc.get_max_metrics(d))
         if name == "get_lactate_threshold":
