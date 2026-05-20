@@ -142,7 +142,7 @@ TOOLS: list[Tool] = [
     Tool(name="get_activity_splits", description="Splits por km/milla de una actividad.", inputSchema={"type": "object", "properties": {"activity_id": {"type": "integer"}}, "required": ["activity_id"]}),
     Tool(name="get_activity_weather", description="Condiciones climáticas durante una actividad.", inputSchema={"type": "object", "properties": {"activity_id": {"type": "integer"}}, "required": ["activity_id"]}),
     Tool(name="get_activity_exercise_sets", description="Series de ejercicio de una sesión de fuerza: repeticiones, peso, duración.", inputSchema={"type": "object", "properties": {"activity_id": {"type": "integer"}}, "required": ["activity_id"]}),
-    Tool(name="get_progress_summary", description="Resumen de progreso en un rango de fechas por tipo de actividad.", inputSchema={"type": "object", "properties": {"start_date": {"type": "string"}, "end_date": {"type": "string"}, "activity_type": {"type": "string", "default": "running"}}, "required": ["start_date", "end_date"]}),
+    Tool(name="get_progress_summary", description="Resumen de progreso en un rango de fechas. metric: distance (default), duration, elevationGain, etc.", inputSchema={"type": "object", "properties": {"start_date": {"type": "string"}, "end_date": {"type": "string"}, "metric": {"type": "string", "default": "distance"}}, "required": ["start_date", "end_date"]}),
 
     # ── 7. ENTRENAMIENTOS (CREAR / PROGRAMAR / ELIMINAR) ─────────────────────
     Tool(
@@ -417,7 +417,7 @@ async def handle_tool(name: str, args: dict) -> list[TextContent]:
         if name == "get_activity_details":
             return ok(gc.get_activity_details(args["activity_id"]))
         if name == "get_activity_hr_zones":
-            return ok(gc.get_activity_hr_zones(args["activity_id"]))
+            return ok(gc.get_activity_hr_in_timezones(args["activity_id"]))
         if name == "get_activity_splits":
             return ok(gc.get_activity_splits(args["activity_id"]))
         if name == "get_activity_weather":
@@ -425,7 +425,7 @@ async def handle_tool(name: str, args: dict) -> list[TextContent]:
         if name == "get_activity_exercise_sets":
             return ok(gc.get_activity_exercise_sets(args["activity_id"]))
         if name == "get_progress_summary":
-            return ok(gc.get_progress_summary(sd, ed, args.get("activity_type", "running")))
+            return ok(gc.get_progress_summary_between_dates(sd, ed, args.get("metric", "distance")))
 
         # ── ENTRENAMIENTOS ────────────────────────────────────────────────────
         if name == "get_workouts":
