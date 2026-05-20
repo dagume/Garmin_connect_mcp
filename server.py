@@ -303,6 +303,11 @@ TOOLS: list[Tool] = [
         }
     ),
     Tool(
+        name="unschedule_workout",
+        description="Quita un entrenamiento programado del calendario. Usa el scheduled_workout_id (de get_scheduled_workouts o de la respuesta de schedule_workout), NO el workout_id.",
+        inputSchema={"type": "object", "properties": {"scheduled_workout_id": {"type": "integer", "description": "ID de la programacion, no el del workout"}}, "required": ["scheduled_workout_id"]}
+    ),
+    Tool(
         name="delete_workout",
         description="Elimina un entrenamiento de Garmin Connect.",
         inputSchema={"type": "object", "properties": {"workout_id": {"type": "integer"}}, "required": ["workout_id"]}
@@ -520,6 +525,8 @@ async def handle_tool(name: str, args: dict) -> list[TextContent]:
             return ok(gc.delete_workout(args["workout_id"]))
         if name == "schedule_workout":
             return ok(gc.schedule_workout(args["workout_id"], args["scheduled_date"]))
+        if name == "unschedule_workout":
+            return ok(gc.unschedule_workout(args["scheduled_workout_id"]))
 
         if name == "add_workout":
             # ── Mapas verificados con payloads reales de Garmin Connect ──────────
