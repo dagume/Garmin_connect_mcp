@@ -83,6 +83,87 @@ def collect_range(fn, start: str, end: str) -> list:
     return out
 
 
+def _first_value(dct):
+    """Primer value de un dict (para mapas con clave dinamica como deviceId)."""
+    if isinstance(dct, dict) and dct:
+        return next(iter(dct.values()))
+    return None
+
+
+def athlete_snapshot(gc, d: str) -> dict:
+    """Check-in diario en UNA llamada. Cada seccion es independiente: si una
+    fuente falla, devuelve {'error': ...} sin tumbar el resto del snapshot."""
+    snap = {"date": d}
+
+    # training_readiness (+ recovery_time sale del mismo payload, ahorra 1 llamada)
+    try:
+        tr = gc.get_training_readiness(d)
+        tr0 = tr[0] if isinstance(tr, list) and tr else (tr if isinstance(tr, dict) else {})
+        snap["training_readiness"] = {"score": tr0.get("score"), "level": tr0.get("level"), "feedback": tr0.get("feedbackShort")}
+        snap["recovery_time"] = {"minutes": tr0.get("recoveryTime")}
+    except Exception as e:
+        snap["training_readiness"] = {"error": str(e)}
+        snap["recovery_time"] = {"error": str(e)}
+
+    # training_status (acute/chronic/ACWR embebidos en acuteTrainingLoadDTO)
+    try:
+        ts = gc.get_training_status(d)
+        latest = _first_value(((ts or {}).get("mostRecentTrainingStatus") or {}).get("latestTrainingStatusData") or {}) or {}
+        load = latest.get("acuteTrainingLoadDTO") or {}
+        snap["training_status"] = {
+            "status": latest.get("trainingStatus"),
+            "phrase": latest.get("trainingStatusFeedbackPhrase"),
+            "acute_load": load.get("dailyTrainingLoadAcute"),
+            "chronic_load": load.get("dailyTrainingLoadChronic"),
+            "acwr": load.get("dailyAcuteChronicWorkloadRatio"),
+            "acwr_status": load.get("acwrStatus"),
+        }
+    except Exception as e:
+        snap["training_status"] = {"error": str(e)}
+
+    # hrv_status
+    try:
+        hrv = (gc.get_hrv_data(d) or {}).get("hrvSummary") or {}
+        snap["hrv_status"] = {"status": hrv.get("status"), "last_night_avg": hrv.get("lastNightAvg"), "weekly_avg": hrv.get("weeklyAvg")}
+    except Exception as e:
+        snap["hrv_status"] = {"error": str(e)}
+
+    # rhr
+    try:
+        rhr = gc.get_rhr_day(d)
+        vals = (((rhr or {}).get("allMetrics") or {}).get("metricsMap") or {}).get("WELLNESS_RESTING_HEART_RATE") or []
+        snap["rhr"] = {"bpm": (vals[0].get("value") if vals else None)}
+    except Exception as e:
+        snap["rhr"] = {"error": str(e)}
+
+    # body_battery
+    try:
+        bb = gc.get_body_battery(d, d)
+        bb0 = bb[0] if isinstance(bb, list) and bb else {}
+        levels = [p[1] for p in (bb0.get("bodyBatteryValuesArray") or []) if isinstance(p, list) and len(p) > 1 and p[1] is not None]
+        snap["body_battery"] = {
+            "charged": bb0.get("charged"), "drained": bb0.get("drained"),
+            "current": (levels[-1] if levels else None), "high": (max(levels) if levels else None), "low": (min(levels) if levels else None),
+        }
+    except Exception as e:
+        snap["body_battery"] = {"error": str(e)}
+
+    # last_activity
+    try:
+        la = gc.get_last_activity() or {}
+        snap["last_activity"] = {
+            "type": (la.get("activityType") or {}).get("typeKey"),
+            "name": la.get("activityName"), "start": la.get("startTimeLocal"),
+            "distance_km": (round(la["distance"] / 1000, 2) if la.get("distance") else None),
+            "duration_min": (round(la["duration"] / 60, 1) if la.get("duration") else None),
+            "avg_hr": la.get("averageHR"), "max_hr": la.get("maxHR"),
+        }
+    except Exception as e:
+        snap["last_activity"] = {"error": str(e)}
+
+    return snap
+
+
 # ─── Definición de herramientas ───────────────────────────────────────────────
 
 TOOLS: list[Tool] = [
@@ -114,6 +195,7 @@ TOOLS: list[Tool] = [
     Tool(name="get_training_status", description="Training Status (productivo, manteniendo, desentrenando, sobrecargado, etc.). Incluye Acute/Chronic Load y ACWR en mostRecentTrainingStatus.latestTrainingStatusData.<userId>.acuteTrainingLoadDTO.", inputSchema={"type": "object", "properties": {"date": {"type": "string", "description": "Fecha YYYY-MM-DD (default: hoy)"}}}),
     Tool(name="get_morning_training_readiness", description="Training Readiness matutino detallado: nivel, score y factores (sueño, recovery time, ACWR, HRV, stress) con su feedback.", inputSchema={"type": "object", "properties": {"date": {"type": "string", "description": "Fecha YYYY-MM-DD (default: hoy)"}}}),
     Tool(name="get_running_tolerance", description="Running Tolerance: tolerancia/carga de carrera en un rango de fechas, agregada por semana o dia.", inputSchema={"type": "object", "properties": {"start_date": {"type": "string"}, "end_date": {"type": "string"}, "aggregation": {"type": "string", "description": "weekly (default) o daily"}}}),
+    Tool(name="get_athlete_snapshot", description="Check-in diario en UNA sola llamada: training_readiness, training_status (con ACWR y acute/chronic load), recovery_time, hrv_status, rhr, body_battery y last_activity. Reemplaza ~7 llamadas del workflow diario.", inputSchema={"type": "object", "properties": {"date": {"type": "string", "description": "Fecha YYYY-MM-DD (default: hoy)"}}}),
     Tool(name="get_vo2max", description="Estimación de VO2 Max para carrera y ciclismo.", inputSchema={"type": "object", "properties": {"date": {"type": "string"}}}),
     Tool(name="get_lactate_threshold", description="Umbral de lactato: FC y ritmo al umbral.", inputSchema={"type": "object", "properties": {}}),
     Tool(name="get_race_predictions", description="Predicciones de tiempo en carrera: 5K, 10K, media maratón, maratón.", inputSchema={"type": "object", "properties": {}}),
@@ -372,6 +454,8 @@ async def handle_tool(name: str, args: dict) -> list[TextContent]:
             return ok(gc.get_morning_training_readiness(d))
         if name == "get_running_tolerance":
             return ok(gc.get_running_tolerance(sd, ed, args.get("aggregation", "weekly")))
+        if name == "get_athlete_snapshot":
+            return ok(athlete_snapshot(gc, d))
         if name == "get_vo2max":
             return ok(gc.get_max_metrics(d))
         if name == "get_lactate_threshold":
